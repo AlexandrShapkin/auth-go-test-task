@@ -1,19 +1,13 @@
 package jwt
 
 import (
-	"errors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
+
 // TODO: задокументировать методы + тесты
-// TODO: вынести в отдельный файл и мб добавить обертки для не моих ошибок
-var (
-	InvalidTokenErr      = errors.New("invalid token")
-	UnknownClaimsTypeErr = errors.New("unknown claims type")
-	TokensNotPairedErr   = errors.New("tokens is not paired")
-)
 
 var (
 	AccessExpires     = 30 * time.Minute
@@ -109,14 +103,14 @@ func (j *ImplJWT) ValidateAccessToken(accessToken string) (*AccessClaims, error)
 	}
 
 	if !token.Valid {
-		return nil, InvalidTokenErr
+		return nil, ErrInvalidToken
 	}
 
 	if claims, ok := token.Claims.(*AccessClaims); ok {
 		return claims, nil
 	}
 
-	return nil, UnknownClaimsTypeErr
+	return nil, ErrUnknownClaimsType
 }
 
 func (j *ImplJWT) ValidateRefreshToken(refreshToken string) (*RefreshClaims, error) {
@@ -129,19 +123,19 @@ func (j *ImplJWT) ValidateRefreshToken(refreshToken string) (*RefreshClaims, err
 	}
 
 	if !token.Valid {
-		return nil, InvalidTokenErr
+		return nil, ErrInvalidToken
 	}
 
 	if claims, ok := token.Claims.(*RefreshClaims); ok {
 		return claims, nil
 	}
 
-	return nil, UnknownClaimsTypeErr
+	return nil, ErrUnknownClaimsType
 }
 
 func (j *ImplJWT) RefreshTokenPair(accessClaims *AccessClaims, refreshClaims *RefreshClaims) (string, string, error) {
 	if accessClaims.ID != refreshClaims.AccessID {
-		return "", "", TokensNotPairedErr
+		return "", "", ErrTokensNotPaired
 	}
 
 	return j.GenereteTokenPair(refreshClaims.Subject, refreshClaims.UserIP)
