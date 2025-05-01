@@ -15,6 +15,7 @@ type GormUserRepo struct {
 type UserRepo interface {
 	Create(ctx context.Context, user *models.User) error
 	FindByID(ctx context.Context, id uuid.UUID) (*models.User, error)
+	FindByIDString(ctx context.Context, idString string) (*models.User, error)
 	Update(ctx context.Context, user *models.User) error
 	DeleteByID(ctx context.Context, id uuid.UUID) error
 }
@@ -31,11 +32,25 @@ func (r *GormUserRepo) Create(ctx context.Context, user *models.User) error {
 
 func (r *GormUserRepo) FindByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	var user models.User
-	err := r.DB.WithContext(ctx).First(&user, "id = ?", id).Error
+	err := r.DB.WithContext(ctx).First(&user, "user_id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *GormUserRepo) FindByIDString(ctx context.Context, idString string) (*models.User, error) {
+	id, err := uuid.Parse(idString)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := r.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }
 
 func (r *GormUserRepo) Update(ctx context.Context, user *models.User) error {
@@ -43,5 +58,5 @@ func (r *GormUserRepo) Update(ctx context.Context, user *models.User) error {
 }
 
 func (r *GormUserRepo) DeleteByID(ctx context.Context, id uuid.UUID) error {
-	return r.DB.WithContext(ctx).Delete(&models.User{}, "id = ?", id).Error
+	return r.DB.WithContext(ctx).Delete(&models.User{}, "user_id = ?", id).Error
 }
