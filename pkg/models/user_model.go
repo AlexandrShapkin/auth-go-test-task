@@ -16,3 +16,11 @@ type User struct {
 	UpdatedAt    time.Time
 	DeletedAt    gorm.DeletedAt `gorm:"index"`
 }
+
+func NewUser(email string, hashedPassword string) *User {
+	return &User{
+		UserID:   uuid.New(),
+		Email:    email,
+		Password: hashedPassword,
+	}
+}
