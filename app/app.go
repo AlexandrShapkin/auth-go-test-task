@@ -1,14 +1,18 @@
 package app
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/AlexandrShapkin/auth-go-test-task/pkg/jwt"
+	"github.com/AlexandrShapkin/auth-go-test-task/pkg/models"
+	"github.com/AlexandrShapkin/auth-go-test-task/pkg/repositories"
 	"github.com/gin-gonic/gin"
 )
 
 type ImplApp struct {
 	JWTManager jwt.JWT
+	UserRepo   repositories.UserRepo
 	Router     *gin.Engine
 }
 
@@ -16,9 +20,10 @@ type App interface {
 	Run(addr string) error
 }
 
-func NewApp(jwtManager jwt.JWT) App {
+func NewApp(jwtManager jwt.JWT, userRepo repositories.UserRepo) App {
 	app := &ImplApp{
 		JWTManager: jwtManager,
+		UserRepo:   userRepo,
 		Router:     gin.Default(),
 	}
 	// TODO: разработать схему бд и добавить работу с репозиторием бд в обработчики
@@ -33,17 +38,46 @@ func (a *ImplApp) Run(addr string) error {
 	return a.Router.Run(addr) // TODO: адрес из конфиг файла
 }
 
+type LoginBody struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
 func (a *ImplApp) LoginHandler(ctx *gin.Context) {
+	body := LoginBody{}
+	err := ctx.BindJSON(&body)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid request data"}) // TODO: вынести в отдельный тип ошибки
+		return
+	}
+
+	user, err := a.UserRepo.FindByIDString(ctx, ctx.Param("guid"))
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "user not found"}) // TODO: вынести в отдельный тип ошибки
+		return
+	}
+
+	if user.Email != body.Email || user.Password != body.Password { // TODO: проверка хеша пароля 
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "incorrect email or password"}) // TODO: вынести в отдельный тип ошибки
+		return
+	}
 	// TODO: добавить настройку для двух режимов, в одном вызывается ctx.ClientIP() для тестирования, а в другом ctx.RemoteIP()
 	accessToken, refreshToken, err := a.JWTManager.GenereteTokenPair(ctx.Param("guid"), ctx.ClientIP()) // добавить проверку существования пользователя с полученным guid в бд иначе 404
 	if err != nil {
 		ctx.String(http.StatusBadRequest, err.Error())
 		return
 	}
-	// TODO: запись refreshToken в бд
+
+	b64token := EncodeTokenToBase64(refreshToken)
+	err = a.SaveRefreshToDB(ctx, b64token, user)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}) // TODO: вынести в отдельный тип ошибки
+		return
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{ // TODO: запись в куки
 		"access":  accessToken,
-		"refresh": refreshToken,
+		"refresh": b64token,
 	})
 }
 
@@ -58,16 +92,35 @@ func (a *ImplApp) RefreshHandler(ctx *gin.Context) {
 		ctx.String(http.StatusBadRequest, err.Error())
 		return
 	}
+
 	accessClaims, err := a.JWTManager.ValidateAccessToken(body.Access)
 	if err != nil {
 		ctx.String(http.StatusBadRequest, err.Error())
 		return
 	}
-	refreshClims, err := a.JWTManager.ValidateRefreshToken(body.Refresh)
+
+	rawToken, err := DecodeTokenFromBase64(body.Refresh)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}) // TODO: вынести в отдельный тип ошибки
+		return
+	}
+	refreshClims, err := a.JWTManager.ValidateRefreshToken(rawToken)
 	if err != nil {
 		ctx.String(http.StatusBadRequest, err.Error())
 		return
 	}
+
+	user, err := a.UserRepo.FindByIDString(ctx, refreshClims.Subject)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "user not found"}) // TODO: вынести в отдельный тип ошибки
+		return
+	}
+
+	if !CompareHashAndToken(user.RefreshToken, body.Refresh) {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "incorrect refresh token"})
+		return
+	}
+
 	// TODO: проверка существования refreshToken в бд
 	if accessClaims.UserIP != ctx.ClientIP() && refreshClims.UserIP != ctx.ClientIP() {
 		// Такой подход к проверке адреса является ненадежным, как как в данном случае
@@ -78,8 +131,31 @@ func (a *ImplApp) RefreshHandler(ctx *gin.Context) {
 		return
 	}
 	accessToken, refreshToken, err := a.JWTManager.RefreshTokenPair(accessClaims, refreshClims)
+
+	b64token := EncodeTokenToBase64(refreshToken)
+	err = a.SaveRefreshToDB(ctx, b64token, user)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}) // TODO: вынести в отдельный тип ошибки
+		return
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{ // TODO: запись в куки
 		"access":  accessToken,
-		"refresh": refreshToken,
+		"refresh": b64token,
 	})
+}
+
+func (a *ImplApp) SaveRefreshToDB(ctx context.Context, b64refresh string, user *models.User) error {
+	hashedRefresh, err := HashToken(b64refresh)
+	if err != nil {
+		return err
+	}
+	user.RefreshToken = hashedRefresh
+
+	err = a.UserRepo.Update(ctx, user)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
