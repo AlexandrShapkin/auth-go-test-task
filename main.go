@@ -43,5 +43,5 @@ func main() {
 	userRepo := repositories.NewUserRepo(database)
 
 	application := app.NewApp(jwtManager, userRepo)
-	application.Run(":8080")
+	application.Run(cfg.App.Addr)
 }

@@ -1,8 +1,13 @@
 package config
 
 type Config struct {
+	App      App      `mapstructure:"app"`
 	JWT      JWT      `mapstracture:"jwt"`
 	Database Database `mapstracture:"database"`
+}
+
+type App struct {
+	Addr string `mapstructure:"addr"`
 }
 
 type JWT struct {

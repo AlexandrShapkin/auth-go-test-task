@@ -26,7 +26,6 @@ func NewApp(jwtManager jwt.JWT, userRepo repositories.UserRepo) App {
 		UserRepo:   userRepo,
 		Router:     gin.Default(),
 	}
-	// TODO: разработать схему бд и добавить работу с репозиторием бд в обработчики
 	// TODO: сделать нормальную обработку ошибок и нормальные коды возврата
 	app.Router.POST("/login/:guid", app.LoginHandler)
 	app.Router.POST("/refresh", app.RefreshHandler)
