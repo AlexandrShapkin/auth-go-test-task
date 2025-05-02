@@ -121,7 +121,7 @@ func (a *ImplApp) LoginHandler(ctx *gin.Context) {
 	}
 	accessToken, refreshToken, err := a.JWTManager.GenereteTokenPair(ctx.Param("guid"), clientIP) // добавить проверку существования пользователя с полученным guid в бд иначе 404
 	if err != nil {
-		ctx.String(http.StatusBadRequest, err.Error())
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -158,9 +158,9 @@ func (a *ImplApp) RefreshHandler(ctx *gin.Context) {
 		return
 	}
 
-	accessClaims, err := a.JWTManager.ValidateAccessToken(accessToken)
+	accessClaims, err := a.JWTManager.GetAccessClaimsWithoutValidation(accessToken)
 	if err != nil {
-		ctx.String(http.StatusBadRequest, err.Error())
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -171,7 +171,7 @@ func (a *ImplApp) RefreshHandler(ctx *gin.Context) {
 	}
 	refreshClims, err := a.JWTManager.ValidateRefreshToken(rawToken)
 	if err != nil {
-		ctx.String(http.StatusBadRequest, err.Error())
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

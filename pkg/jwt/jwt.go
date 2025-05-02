@@ -34,6 +34,7 @@ type JWT interface {
 	GenereteTokenPair(uid string, userIP string) (string, string, error)
 	// Проверяет действительность access токена, в случае если токен действителен, возвращает его payload
 	ValidateAccessToken(accessToken string) (*AccessClaims, error)
+	GetAccessClaimsWithoutValidation(accessToken string) (*AccessClaims, error)
 	// Проверяет действительность refresh токена, в случае если токен действителен, возвращает его payload
 	ValidateRefreshToken(refreshToken string) (*RefreshClaims, error)
 	// Обертка вокруг GenereteTokenPair, но проверяет связанность токенов
@@ -115,6 +116,24 @@ func (j *ImplJWT) GenereteTokenPair(uid string, userIP string) (string, string, 
 	}
 
 	return access, refresh, nil
+}
+
+func (j *ImplJWT) GetAccessClaimsWithoutValidation(accessToken string) (*AccessClaims, error) {
+	token, err := jwt.ParseWithClaims(accessToken, &AccessClaims{}, func(t *jwt.Token) (interface{}, error) {
+		return j.accessSecretKey, nil
+	}, jwt.WithLeeway(j.parseLeewayWindow))
+
+	if err != nil && err.Error() != "token has invalid claims: token is expired" { // по какой то причине на ошибки этой библиотеки не работает errors.Unwrap,
+																				   // а конкретно эта ошибка получена функцией newError и вроде как путем обетывания.
+																				   // Но как то все таки эту ошибку отлавливать нужно для соблдения логики приложения, поэтому делаю как есть
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(*AccessClaims); ok {
+		return claims, nil
+	}
+
+	return nil, ErrUnknownClaimsType
 }
 
 func (j *ImplJWT) ValidateAccessToken(accessToken string) (*AccessClaims, error) {
