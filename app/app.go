@@ -11,20 +11,29 @@ import (
 )
 
 type ImplApp struct {
-	JWTManager jwt.JWT
-	UserRepo   repositories.UserRepo
-	Router     *gin.Engine
+	JWTManager          jwt.JWT
+	UserRepo            repositories.UserRepo
+	Router              *gin.Engine
+	LoginRemoteIPMode   bool
+	RefreshRemoteIPMode bool
 }
 
 type App interface {
 	Run(addr string) error
 }
 
-func NewApp(jwtManager jwt.JWT, userRepo repositories.UserRepo) App {
+func NewApp(
+	jwtManager jwt.JWT,
+	userRepo repositories.UserRepo,
+	loginRemoteIPMode bool,
+	refreshRemoteIPMode bool,
+) App {
 	app := &ImplApp{
-		JWTManager: jwtManager,
-		UserRepo:   userRepo,
-		Router:     gin.Default(),
+		JWTManager:          jwtManager,
+		UserRepo:            userRepo,
+		Router:              gin.Default(),
+		LoginRemoteIPMode:   loginRemoteIPMode,
+		RefreshRemoteIPMode: refreshRemoteIPMode,
 	}
 	// TODO: сделать нормальную обработку ошибок и нормальные коды возврата
 	app.Router.POST("/login/:guid", app.LoginHandler)
@@ -34,7 +43,7 @@ func NewApp(jwtManager jwt.JWT, userRepo repositories.UserRepo) App {
 }
 
 func (a *ImplApp) Run(addr string) error {
-	return a.Router.Run(addr) // TODO: адрес из конфиг файла
+	return a.Router.Run(addr)
 }
 
 type LoginBody struct {
@@ -56,12 +65,18 @@ func (a *ImplApp) LoginHandler(ctx *gin.Context) {
 		return
 	}
 
-	if user.Email != body.Email || user.Password != body.Password { // TODO: проверка хеша пароля 
+	if user.Email != body.Email || user.Password != body.Password { // TODO: проверка хеша пароля
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "incorrect email or password"}) // TODO: вынести в отдельный тип ошибки
 		return
 	}
-	// TODO: добавить настройку для двух режимов, в одном вызывается ctx.ClientIP() для тестирования, а в другом ctx.RemoteIP()
-	accessToken, refreshToken, err := a.JWTManager.GenereteTokenPair(ctx.Param("guid"), ctx.ClientIP()) // добавить проверку существования пользователя с полученным guid в бд иначе 404
+
+	// ctx.ClientIP() вернет не действительный IP, а поле заголовка запроса X-Forwarded-For
+	// Для получения действительного адреса можно вызвать ctx.RemoteIP()
+	clientIP := ctx.ClientIP()
+	if a.LoginRemoteIPMode {
+		clientIP = ctx.RemoteIP()
+	}
+	accessToken, refreshToken, err := a.JWTManager.GenereteTokenPair(ctx.Param("guid"), clientIP) // добавить проверку существования пользователя с полученным guid в бд иначе 404
 	if err != nil {
 		ctx.String(http.StatusBadRequest, err.Error())
 		return
@@ -120,15 +135,17 @@ func (a *ImplApp) RefreshHandler(ctx *gin.Context) {
 		return
 	}
 
-	// TODO: проверка существования refreshToken в бд
-	if accessClaims.UserIP != ctx.ClientIP() && refreshClims.UserIP != ctx.ClientIP() {
-		// Такой подход к проверке адреса является ненадежным, как как в данном случае
-		// ctx.ClientIP() вернет не действительный IP, а поле заголовка запроса X-Forwarded-For
-		// Для получения действительного адреса можно вызвать ctx.RemoteIP()
-		// TODO: добавить настройку для двух режимов, в одном вызывается ctx.ClientIP() для тестирования, а в другом ctx.RemoteIP()
+	// ctx.ClientIP() вернет не действительный IP, а поле заголовка запроса X-Forwarded-For
+	// Для получения действительного адреса можно вызвать ctx.RemoteIP()
+	clientIP := ctx.ClientIP()
+	if a.RefreshRemoteIPMode {
+		clientIP = ctx.RemoteIP()
+	}
+	if accessClaims.UserIP != clientIP && refreshClims.UserIP != clientIP {
 		ctx.String(http.StatusBadRequest, "ip error")
 		return
 	}
+
 	accessToken, refreshToken, err := a.JWTManager.RefreshTokenPair(accessClaims, refreshClims)
 
 	b64token := EncodeTokenToBase64(refreshToken)

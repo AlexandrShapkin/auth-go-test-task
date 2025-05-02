@@ -42,6 +42,6 @@ func main() {
 	}
 	userRepo := repositories.NewUserRepo(database)
 
-	application := app.NewApp(jwtManager, userRepo)
+	application := app.NewApp(jwtManager, userRepo, cfg.App.LoginRemoteIPMode, cfg.App.RefreshRemoteIPMode)
 	application.Run(cfg.App.Addr)
 }

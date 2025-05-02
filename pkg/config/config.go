@@ -7,7 +7,9 @@ type Config struct {
 }
 
 type App struct {
-	Addr string `mapstructure:"addr"`
+	Addr                string `mapstructure:"addr"`
+	LoginRemoteIPMode   bool   `mapstructure:"lremoteipmode"`
+	RefreshRemoteIPMode bool   `mapstructure:"rremoteipmode"`
 }
 
 type JWT struct {
