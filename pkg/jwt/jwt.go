@@ -7,11 +7,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// TODO: задокументировать методы + тесты
-
 var (
-	AccessExpires     = 30 * time.Minute
-	RefreshExpires    = 7 * 24 * time.Hour
+	// Значение которое будет прибавлено к текущему времени, чтобы установить время когда access токен истечет
+	AccessExpires = 30 * time.Minute
+	// Значение которое будет прибавлено к текущему времени, чтобы установить время когда refresh токен истечет
+	RefreshExpires = 7 * 24 * time.Hour
+	// Значние допустимого расхождения времени при проверке действительности токена
 	ParseLeewayWindow = 10 * time.Second
 )
 
@@ -23,13 +24,23 @@ type ImplJWT struct {
 	parseLeewayWindow time.Duration
 }
 
+// Менеджер работы с токенами
 type JWT interface {
+	// Создает новую пару токенов исходя из uuid пользователя и IP адреса с которого был сделан запрос на получение
+	//
+	// Оба токена имеют тип JWT. access (первый) - HS512, refresh (второй) - HS256
+	//
+	// uuid пользовтаеля записывается в поле Subject (sub), userIP в UserIP (user_ip)
 	GenereteTokenPair(uid string, userIP string) (string, string, error)
+	// Проверяет действительность access токена, в случае если токен действителен, возвращает его payload
 	ValidateAccessToken(accessToken string) (*AccessClaims, error)
+	// Проверяет действительность refresh токена, в случае если токен действителен, возвращает его payload
 	ValidateRefreshToken(refreshToken string) (*RefreshClaims, error)
+	// Обертка вокруг GenereteTokenPair, но проверяет связанность токенов
 	RefreshTokenPair(accessClaims *AccessClaims, refreshClaims *RefreshClaims) (string, string, error)
 }
 
+// Конструктор менеджера токенов. Более предпочтительно чем создавать из голой структуры
 func NewJWT(
 	accessSecretKey []byte,
 	refreshSecretKey []byte,
@@ -46,14 +57,19 @@ func NewJWT(
 	}
 }
 
+// Payload access токена
 type AccessClaims struct {
+	// IP с которого был выполнен запрос на получение токена
 	UserIP string `json:"user_ip"`
 	jwt.RegisteredClaims
 }
 
+// Payload refresh токена
 type RefreshClaims struct {
+	// ID (jti) связанного access токена
 	AccessID string `json:"access_id"`
-	UserIP   string `json:"user_ip"`
+	// IP с которого был выполнен запрос на получение токена
+	UserIP string `json:"user_ip"`
 	jwt.RegisteredClaims
 }
 

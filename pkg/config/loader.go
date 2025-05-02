@@ -6,6 +6,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Загружает файл конфигурации.
+// 
+// Для подробной спецификации параметров см. github.com/spf13/viper (SetConfigName, SetConfigType, AddConfigPath)
+//
+// !! Не обрабатывает переменные окружения, хотя и может написать предупреждение указывающее на возможность работы с ними !!
 func LoadConfig(configName string, configType string, path string) (*Config, error) {
 	viper.SetConfigName(configName)
 	viper.SetConfigType(configType)

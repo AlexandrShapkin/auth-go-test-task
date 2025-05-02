@@ -12,14 +12,21 @@ type GormUserRepo struct {
 	DB *gorm.DB
 }
 
+// Репозиторий сущности пользователя, описывающий основные необходимые CRUD операции
 type UserRepo interface {
+	// Создает новую запись пользователя. Передавать обьект созданный при помощи NewUser, генерация uuid происходит в нем
 	Create(ctx context.Context, user *models.User) error
+	// Находит запись пользователя по его uuid
 	FindByID(ctx context.Context, id uuid.UUID) (*models.User, error)
+	// Обертка вокруг FindByID, но не требует предварительного парсинга uuid
 	FindByIDString(ctx context.Context, idString string) (*models.User, error)
+	// Обновляет запись пользователя исходя из его uuid переданного в обьекте (обновляет все поля)
 	Update(ctx context.Context, user *models.User) error
+	// Удаляет пользователя по его uuid
 	DeleteByID(ctx context.Context, id uuid.UUID) error
 }
 
+// Конструктор для создания экземпляра репозитория. Более предпочтительно, чем создание из голой структуры
 func NewUserRepo(db *gorm.DB) UserRepo {
 	return &GormUserRepo{
 		DB: db,
