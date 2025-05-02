@@ -58,6 +58,6 @@ func main() {
 	database := mustConnectDB(cfg.Database)
 	userRepo := repositories.NewUserRepo(database)
 
-	application := app.NewApp(jwtManager, userRepo, cfg.App.LoginRemoteIPMode, cfg.App.RefreshRemoteIPMode, "localhost")
+	application := app.NewApp(jwtManager, userRepo, cfg.App.LoginRemoteIPMode, cfg.App.RefreshRemoteIPMode, cfg.App.Domain)
 	application.Run(cfg.App.Addr)
 }

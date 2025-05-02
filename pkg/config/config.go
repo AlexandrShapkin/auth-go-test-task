@@ -10,6 +10,7 @@ type App struct {
 	Addr                string `mapstructure:"addr"`
 	LoginRemoteIPMode   bool   `mapstructure:"lremoteipmode"`
 	RefreshRemoteIPMode bool   `mapstructure:"rremoteipmode"`
+	Domain              string `mapstructure:"domain"`
 }
 
 type JWT struct {
