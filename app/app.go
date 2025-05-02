@@ -146,7 +146,7 @@ func (a *ImplApp) RefreshHandler(ctx *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, err := a.JWTManager.RefreshTokenPair(accessClaims, refreshClims)
+	accessToken, refreshToken, err := a.JWTManager.RefreshTokenPair(accessClaims, refreshClims, clientIP)
 
 	b64token := EncodeTokenToBase64(refreshToken)
 	err = a.SaveRefreshToDB(ctx, b64token, user)

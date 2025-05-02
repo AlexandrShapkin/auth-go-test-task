@@ -37,7 +37,7 @@ type JWT interface {
 	// Проверяет действительность refresh токена, в случае если токен действителен, возвращает его payload
 	ValidateRefreshToken(refreshToken string) (*RefreshClaims, error)
 	// Обертка вокруг GenereteTokenPair, но проверяет связанность токенов
-	RefreshTokenPair(accessClaims *AccessClaims, refreshClaims *RefreshClaims) (string, string, error)
+	RefreshTokenPair(accessClaims *AccessClaims, refreshClaims *RefreshClaims, currentUserIP string) (string, string, error)
 }
 
 // Конструктор менеджера токенов. Более предпочтительно чем создавать из голой структуры
@@ -149,10 +149,10 @@ func (j *ImplJWT) ValidateRefreshToken(refreshToken string) (*RefreshClaims, err
 	return nil, ErrUnknownClaimsType
 }
 
-func (j *ImplJWT) RefreshTokenPair(accessClaims *AccessClaims, refreshClaims *RefreshClaims) (string, string, error) {
+func (j *ImplJWT) RefreshTokenPair(accessClaims *AccessClaims, refreshClaims *RefreshClaims, currentUserIP string) (string, string, error) {
 	if accessClaims.ID != refreshClaims.AccessID {
 		return "", "", ErrTokensNotPaired
 	}
 
-	return j.GenereteTokenPair(refreshClaims.Subject, refreshClaims.UserIP)
+	return j.GenereteTokenPair(refreshClaims.Subject, currentUserIP)
 }
