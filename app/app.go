@@ -10,12 +10,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	RefreshTokenName = "refresh_token"
+	AccessTokenName  = "access_token"
+)
+
 type ImplApp struct {
 	JWTManager          jwt.JWT
 	UserRepo            repositories.UserRepo
 	Router              *gin.Engine
 	LoginRemoteIPMode   bool
 	RefreshRemoteIPMode bool
+	Domain              string
 }
 
 type App interface {
@@ -27,6 +33,7 @@ func NewApp(
 	userRepo repositories.UserRepo,
 	loginRemoteIPMode bool,
 	refreshRemoteIPMode bool,
+	domain string,
 ) App {
 	app := &ImplApp{
 		JWTManager:          jwtManager,
@@ -34,8 +41,10 @@ func NewApp(
 		Router:              gin.Default(),
 		LoginRemoteIPMode:   loginRemoteIPMode,
 		RefreshRemoteIPMode: refreshRemoteIPMode,
+		Domain:              domain,
 	}
 	// TODO: сделать нормальную обработку ошибок и нормальные коды возврата
+	app.Router.POST("/register", app.RegisterHandler)
 	app.Router.POST("/login/:guid", app.LoginHandler)
 	app.Router.POST("/refresh", app.RefreshHandler)
 
@@ -51,22 +60,50 @@ type LoginBody struct {
 	Password string `json:"password" binding:"required"`
 }
 
+// Обработчик регистрации пользователя, сделан в упрощенном виде, т.к. нужен в основном для проверки работы
+func (a *ImplApp) RegisterHandler(ctx *gin.Context) {
+	body := LoginBody{}
+	err := ctx.BindJSON(&body)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": ErrInvalidRequestData.Error()})
+		return
+	}
+
+	hashedPassword, err := HashPassword(body.Password)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	user := models.NewUser(body.Email, hashedPassword)
+
+	err = a.UserRepo.Create(ctx, user)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, gin.H{
+		"message": "successfully registered",
+		"user_id": user.UserID.String(),
+	})
+}
+
 func (a *ImplApp) LoginHandler(ctx *gin.Context) {
 	body := LoginBody{}
 	err := ctx.BindJSON(&body)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid request data"}) // TODO: вынести в отдельный тип ошибки
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": ErrInvalidRequestData.Error()})
 		return
 	}
 
 	user, err := a.UserRepo.FindByIDString(ctx, ctx.Param("guid"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "user not found"}) // TODO: вынести в отдельный тип ошибки
+		ctx.JSON(http.StatusNotFound, gin.H{"error": ErrUserNotFound.Error()})
 		return
 	}
 
-	if user.Email != body.Email || user.Password != body.Password { // TODO: проверка хеша пароля
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "incorrect email or password"}) // TODO: вынести в отдельный тип ошибки
+	if user.Email != body.Email || !CompareHashAndPassword(user.Password, body.Password) {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": ErrInvalidCredentials.Error()})
 		return
 	}
 
@@ -85,37 +122,45 @@ func (a *ImplApp) LoginHandler(ctx *gin.Context) {
 	b64token := EncodeTokenToBase64(refreshToken)
 	err = a.SaveRefreshToDB(ctx, b64token, user)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}) // TODO: вынести в отдельный тип ошибки
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{ // TODO: запись в куки
-		"access":  accessToken,
-		"refresh": b64token,
+	accessExpiresSec := int(jwt.AccessExpires.Seconds())
+	refreshExpiresSec := int(jwt.RefreshExpires.Seconds())
+
+	// здесь нет ошибки связанной с времени жизни access токена, так как он нужен для /refresh операции
+	ctx.SetCookie(AccessTokenName, accessToken, refreshExpiresSec, "/", a.Domain, false, true)
+	ctx.SetCookie(RefreshTokenName, b64token, refreshExpiresSec, "/", a.Domain, false, true)
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message":    "successfully logged in",
+		"expires_in": accessExpiresSec, // в качестве времени истечения access токена хоть как отправляю время его валидности
 	})
 }
 
 func (a *ImplApp) RefreshHandler(ctx *gin.Context) {
-	type Body struct { // TODO: чтение из куки
-		Access  string `json:"access"`
-		Refresh string `json:"refresh"`
+	accessToken, err := ctx.Cookie(AccessTokenName)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": ErrAccessTokenRequired.Error()})
+		return
 	}
-	body := Body{}
-	err := ctx.BindJSON(&body)
+
+	refreshToken, err := ctx.Cookie(RefreshTokenName)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": ErrRefreshTokenRequired.Error()})
+		return
+	}
+
+	accessClaims, err := a.JWTManager.ValidateAccessToken(accessToken)
 	if err != nil {
 		ctx.String(http.StatusBadRequest, err.Error())
 		return
 	}
 
-	accessClaims, err := a.JWTManager.ValidateAccessToken(body.Access)
+	rawToken, err := DecodeTokenFromBase64(refreshToken)
 	if err != nil {
-		ctx.String(http.StatusBadRequest, err.Error())
-		return
-	}
-
-	rawToken, err := DecodeTokenFromBase64(body.Refresh)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}) // TODO: вынести в отдельный тип ошибки
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	refreshClims, err := a.JWTManager.ValidateRefreshToken(rawToken)
@@ -126,12 +171,12 @@ func (a *ImplApp) RefreshHandler(ctx *gin.Context) {
 
 	user, err := a.UserRepo.FindByIDString(ctx, refreshClims.Subject)
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "user not found"}) // TODO: вынести в отдельный тип ошибки
+		ctx.JSON(http.StatusNotFound, gin.H{"error": ErrUserNotFound})
 		return
 	}
 
-	if !CompareHashAndToken(user.RefreshToken, body.Refresh) {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "incorrect refresh token"})
+	if !CompareHashAndToken(user.RefreshToken, refreshToken) {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": ErrIncorrectRefreshToken.Error()})
 		return
 	}
 
@@ -146,18 +191,24 @@ func (a *ImplApp) RefreshHandler(ctx *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, err := a.JWTManager.RefreshTokenPair(accessClaims, refreshClims, clientIP)
+	accessToken, refreshToken, err = a.JWTManager.RefreshTokenPair(accessClaims, refreshClims, clientIP)
 
 	b64token := EncodeTokenToBase64(refreshToken)
 	err = a.SaveRefreshToDB(ctx, b64token, user)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}) // TODO: вынести в отдельный тип ошибки
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{ // TODO: запись в куки
-		"access":  accessToken,
-		"refresh": b64token,
+	accessExpiresSec := int(jwt.AccessExpires.Seconds())
+	refreshExpiresSec := int(jwt.RefreshExpires.Seconds())
+
+	ctx.SetCookie(AccessTokenName, accessToken, refreshExpiresSec, "/", a.Domain, false, true)
+	ctx.SetCookie(RefreshTokenName, b64token, refreshExpiresSec, "/", a.Domain, false, true)
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message":    "successfully refreshed",
+		"expires_in": accessExpiresSec,
 	})
 }
 
