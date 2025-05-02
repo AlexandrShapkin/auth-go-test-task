@@ -38,6 +38,14 @@ type JWT interface {
 	ValidateRefreshToken(refreshToken string) (*RefreshClaims, error)
 	// Обертка вокруг GenereteTokenPair, но проверяет связанность токенов
 	RefreshTokenPair(accessClaims *AccessClaims, refreshClaims *RefreshClaims, currentUserIP string) (string, string, error)
+	// Возвращает время в течении которого access токен валиден с момента создания
+	GetAccessExpires() time.Duration
+	// Возвращает время в течении которого access токен валиден с момента создания в секундах
+	GetAccessExpiresSec() int
+	// Возвращает время в течении которого refresh токен валиден с момента создания
+	GetRefreshExpires() time.Duration
+	// Возвращает время в течении которого refresh токен валиден с момента создания в секундах
+	GetRefreshExpiresSec() int
 }
 
 // Конструктор менеджера токенов. Более предпочтительно чем создавать из голой структуры
@@ -155,4 +163,20 @@ func (j *ImplJWT) RefreshTokenPair(accessClaims *AccessClaims, refreshClaims *Re
 	}
 
 	return j.GenereteTokenPair(refreshClaims.Subject, currentUserIP)
+}
+
+func (j *ImplJWT) GetAccessExpires() time.Duration {
+	return j.accessExpires
+}
+
+func (j *ImplJWT) GetAccessExpiresSec() int {
+	return int(j.accessExpires.Seconds())
+}
+
+func (j *ImplJWT) GetRefreshExpires() time.Duration {
+	return j.refreshExpires
+}
+
+func (j *ImplJWT) GetRefreshExpiresSec() int {
+	return int(j.refreshExpires.Seconds())
 }

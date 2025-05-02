@@ -126,8 +126,8 @@ func (a *ImplApp) LoginHandler(ctx *gin.Context) {
 		return
 	}
 
-	accessExpiresSec := int(jwt.AccessExpires.Seconds())
-	refreshExpiresSec := int(jwt.RefreshExpires.Seconds())
+	accessExpiresSec := a.JWTManager.GetAccessExpiresSec()
+	refreshExpiresSec := a.JWTManager.GetRefreshExpiresSec()
 
 	// здесь нет ошибки связанной с времени жизни access токена, так как он нужен для /refresh операции
 	ctx.SetCookie(AccessTokenName, accessToken, refreshExpiresSec, "/", a.Domain, false, true)
@@ -200,8 +200,8 @@ func (a *ImplApp) RefreshHandler(ctx *gin.Context) {
 		return
 	}
 
-	accessExpiresSec := int(jwt.AccessExpires.Seconds())
-	refreshExpiresSec := int(jwt.RefreshExpires.Seconds())
+	accessExpiresSec := a.JWTManager.GetAccessExpiresSec()
+	refreshExpiresSec := a.JWTManager.GetRefreshExpiresSec()
 
 	ctx.SetCookie(AccessTokenName, accessToken, refreshExpiresSec, "/", a.Domain, false, true)
 	ctx.SetCookie(RefreshTokenName, b64token, refreshExpiresSec, "/", a.Domain, false, true)
