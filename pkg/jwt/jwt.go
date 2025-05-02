@@ -17,11 +17,11 @@ var (
 )
 
 type ImplJWT struct {
-	accessSecretKey   []byte
-	refreshSecretKey  []byte
-	accessExpires     time.Duration
-	refreshExpires    time.Duration
-	parseLeewayWindow time.Duration
+	AccessSecretKey   []byte
+	RefreshSecretKey  []byte
+	AccessExpires     time.Duration
+	RefreshExpires    time.Duration
+	ParseLeewayWindow time.Duration
 }
 
 // Менеджер работы с токенами
@@ -34,6 +34,7 @@ type JWT interface {
 	GenereteTokenPair(uid string, userIP string) (string, string, error)
 	// Проверяет действительность access токена, в случае если токен действителен, возвращает его payload
 	ValidateAccessToken(accessToken string) (*AccessClaims, error)
+	// Парсит и выводит полезную нагрузку токена без проверки действительности
 	GetAccessClaimsWithoutValidation(accessToken string) (*AccessClaims, error)
 	// Проверяет действительность refresh токена, в случае если токен действителен, возвращает его payload
 	ValidateRefreshToken(refreshToken string) (*RefreshClaims, error)
@@ -58,11 +59,11 @@ func NewJWT(
 	parseLeewayWindow time.Duration,
 ) JWT {
 	return &ImplJWT{
-		accessSecretKey:   accessSecretKey,
-		refreshSecretKey:  refreshSecretKey,
-		accessExpires:     accessExpires,
-		refreshExpires:    refreshExpires,
-		parseLeewayWindow: parseLeewayWindow,
+		AccessSecretKey:   accessSecretKey,
+		RefreshSecretKey:  refreshSecretKey,
+		AccessExpires:     accessExpires,
+		RefreshExpires:    refreshExpires,
+		ParseLeewayWindow: parseLeewayWindow,
 	}
 }
 
@@ -90,7 +91,7 @@ func (j *ImplJWT) GenereteTokenPair(uid string, userIP string) (string, string, 
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   uid,
 			ID:        tokenID,
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.accessExpires)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.AccessExpires)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	})
@@ -100,17 +101,17 @@ func (j *ImplJWT) GenereteTokenPair(uid string, userIP string) (string, string, 
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   uid,
 			ID:        uuid.NewString(),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.refreshExpires)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.RefreshExpires)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	})
 
-	access, err := accessJWT.SignedString(j.accessSecretKey)
+	access, err := accessJWT.SignedString(j.AccessSecretKey)
 	if err != nil {
 		return "", "", err
 	}
 
-	refresh, err := refreshJWT.SignedString(j.refreshSecretKey)
+	refresh, err := refreshJWT.SignedString(j.RefreshSecretKey)
 	if err != nil {
 		return "", "", err
 	}
@@ -120,12 +121,12 @@ func (j *ImplJWT) GenereteTokenPair(uid string, userIP string) (string, string, 
 
 func (j *ImplJWT) GetAccessClaimsWithoutValidation(accessToken string) (*AccessClaims, error) {
 	token, err := jwt.ParseWithClaims(accessToken, &AccessClaims{}, func(t *jwt.Token) (interface{}, error) {
-		return j.accessSecretKey, nil
-	}, jwt.WithLeeway(j.parseLeewayWindow))
+		return j.AccessSecretKey, nil
+	}, jwt.WithLeeway(j.ParseLeewayWindow))
 
 	if err != nil && err.Error() != "token has invalid claims: token is expired" { // по какой то причине на ошибки этой библиотеки не работает errors.Unwrap,
-																				   // а конкретно эта ошибка получена функцией newError и вроде как путем обетывания.
-																				   // Но как то все таки эту ошибку отлавливать нужно для соблдения логики приложения, поэтому делаю как есть
+		// а конкретно эта ошибка получена функцией newError и вроде как путем обетывания.
+		// Но как то все таки эту ошибку отлавливать нужно для соблдения логики приложения, поэтому делаю как есть
 		return nil, err
 	}
 
@@ -138,8 +139,8 @@ func (j *ImplJWT) GetAccessClaimsWithoutValidation(accessToken string) (*AccessC
 
 func (j *ImplJWT) ValidateAccessToken(accessToken string) (*AccessClaims, error) {
 	token, err := jwt.ParseWithClaims(accessToken, &AccessClaims{}, func(t *jwt.Token) (interface{}, error) {
-		return j.accessSecretKey, nil
-	}, jwt.WithLeeway(j.parseLeewayWindow))
+		return j.AccessSecretKey, nil
+	}, jwt.WithLeeway(j.ParseLeewayWindow))
 
 	if err != nil {
 		return nil, err
@@ -158,8 +159,8 @@ func (j *ImplJWT) ValidateAccessToken(accessToken string) (*AccessClaims, error)
 
 func (j *ImplJWT) ValidateRefreshToken(refreshToken string) (*RefreshClaims, error) {
 	token, err := jwt.ParseWithClaims(refreshToken, &RefreshClaims{}, func(t *jwt.Token) (interface{}, error) {
-		return j.refreshSecretKey, nil
-	}, jwt.WithLeeway(j.parseLeewayWindow))
+		return j.RefreshSecretKey, nil
+	}, jwt.WithLeeway(j.ParseLeewayWindow))
 
 	if err != nil {
 		return nil, err
@@ -185,17 +186,17 @@ func (j *ImplJWT) RefreshTokenPair(accessClaims *AccessClaims, refreshClaims *Re
 }
 
 func (j *ImplJWT) GetAccessExpires() time.Duration {
-	return j.accessExpires
+	return j.AccessExpires
 }
 
 func (j *ImplJWT) GetAccessExpiresSec() int {
-	return int(j.accessExpires.Seconds())
+	return int(j.AccessExpires.Seconds())
 }
 
 func (j *ImplJWT) GetRefreshExpires() time.Duration {
-	return j.refreshExpires
+	return j.RefreshExpires
 }
 
 func (j *ImplJWT) GetRefreshExpiresSec() int {
-	return int(j.refreshExpires.Seconds())
+	return int(j.RefreshExpires.Seconds())
 }
