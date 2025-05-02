@@ -83,7 +83,7 @@ func (a *ImplApp) RegisterHandler(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusCreated, gin.H{
-		"message": "successfully registered",
+		"message": MessageSuccessfullyRegistered,
 		"user_id": user.UserID.String(),
 	})
 }
@@ -134,7 +134,7 @@ func (a *ImplApp) LoginHandler(ctx *gin.Context) {
 	ctx.SetCookie(RefreshTokenName, b64token, refreshExpiresSec, "/", a.Domain, false, true)
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"message":    "successfully logged in",
+		"message":    MessageSuccessfullyLoggedIn,
 		"expires_in": accessExpiresSec, // в качестве времени истечения access токена хоть как отправляю время его валидности
 	})
 }
@@ -207,7 +207,7 @@ func (a *ImplApp) RefreshHandler(ctx *gin.Context) {
 	ctx.SetCookie(RefreshTokenName, b64token, refreshExpiresSec, "/", a.Domain, false, true)
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"message":    "successfully refreshed",
+		"message":    MessafeSuccessfullyRefreshed,
 		"expires_in": accessExpiresSec,
 	})
 }
