@@ -1,0 +1,16 @@
+pgdata
+
+.dockerignore
+compose.yaml
+
+config.yaml
+config.yaml.example
+
+*.exe
+*.out
+
+.git
+.gitignore
+
+LICENSE
+README.md
