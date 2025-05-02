@@ -9,6 +9,7 @@ import (
 	"github.com/AlexandrShapkin/auth-go-test-task/pkg/config"
 	"github.com/AlexandrShapkin/auth-go-test-task/pkg/db"
 	"github.com/AlexandrShapkin/auth-go-test-task/pkg/jwt"
+	"github.com/AlexandrShapkin/auth-go-test-task/pkg/mailer"
 	"github.com/AlexandrShapkin/auth-go-test-task/pkg/repositories"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -58,6 +59,15 @@ func main() {
 	database := mustConnectDB(cfg.Database)
 	userRepo := repositories.NewUserRepo(database)
 
-	application := app.NewApp(jwtManager, userRepo, cfg.App.LoginRemoteIPMode, cfg.App.RefreshRemoteIPMode, cfg.App.Domain)
+	mailer := mailer.NewMailer(cfg.Mail.From, cfg.Mail.Pass)
+
+	application := app.NewApp(
+		jwtManager,
+		userRepo,
+		mailer,
+		cfg.App.LoginRemoteIPMode,
+		cfg.App.RefreshRemoteIPMode,
+		cfg.App.Domain,
+	)
 	application.Run(cfg.App.Addr)
 }

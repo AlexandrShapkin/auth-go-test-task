@@ -2,9 +2,12 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/AlexandrShapkin/auth-go-test-task/pkg/jwt"
+	"github.com/AlexandrShapkin/auth-go-test-task/pkg/mailer"
 	"github.com/AlexandrShapkin/auth-go-test-task/pkg/models"
 	"github.com/AlexandrShapkin/auth-go-test-task/pkg/repositories"
 	"github.com/gin-gonic/gin"
@@ -18,6 +21,7 @@ const (
 type ImplApp struct {
 	JWTManager          jwt.JWT
 	UserRepo            repositories.UserRepo
+	Mailer              mailer.Mailer
 	Router              *gin.Engine
 	LoginRemoteIPMode   bool
 	RefreshRemoteIPMode bool
@@ -31,6 +35,7 @@ type App interface {
 func NewApp(
 	jwtManager jwt.JWT,
 	userRepo repositories.UserRepo,
+	mailer mailer.Mailer,
 	loginRemoteIPMode bool,
 	refreshRemoteIPMode bool,
 	domain string,
@@ -38,6 +43,7 @@ func NewApp(
 	app := &ImplApp{
 		JWTManager:          jwtManager,
 		UserRepo:            userRepo,
+		Mailer:              mailer,
 		Router:              gin.Default(),
 		LoginRemoteIPMode:   loginRemoteIPMode,
 		RefreshRemoteIPMode: refreshRemoteIPMode,
@@ -187,8 +193,17 @@ func (a *ImplApp) RefreshHandler(ctx *gin.Context) {
 		clientIP = ctx.RemoteIP()
 	}
 	if accessClaims.UserIP != clientIP && refreshClims.UserIP != clientIP {
-		ctx.String(http.StatusBadRequest, "ip error")
-		return
+		go func() {
+			err := a.Mailer.SendMail(
+				user.Email,
+				"Предупреждение о доступе к аккаунту с нового IP адреса",
+				fmt.Sprintf("Доступ к аккаунту был выполнен с неавторизованного IP адреса (%s)\n"+
+					"Если это не вы, то обратитесь к системному администратору", clientIP),
+			)
+			if err != nil {
+				slog.Warn("Failed to send mail", "error", err.Error())
+			}
+		}()
 	}
 
 	accessToken, refreshToken, err = a.JWTManager.RefreshTokenPair(accessClaims, refreshClims, clientIP)

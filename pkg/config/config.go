@@ -2,6 +2,7 @@ package config
 
 type Config struct {
 	App      App      `mapstructure:"app"`
+	Mail     Mail     `mapstructure:"mail"`
 	JWT      JWT      `mapstracture:"jwt"`
 	Database Database `mapstracture:"database"`
 }
@@ -11,6 +12,11 @@ type App struct {
 	LoginRemoteIPMode   bool   `mapstructure:"lremoteipmode"`
 	RefreshRemoteIPMode bool   `mapstructure:"rremoteipmode"`
 	Domain              string `mapstructure:"domain"`
+}
+
+type Mail struct {
+	From string `mapstructure:"from"`
+	Pass string `mapstructure:"pass"`
 }
 
 type JWT struct {
