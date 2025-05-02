@@ -1,0 +1,35 @@
+app:
+  # адрес на котором слушает gin
+  addr: ":8080"
+  # режим RemoteIP в /login (для тестирования лучше оставить false)
+  lremoteipmode: false
+  # режим RemoteIP в /refresh (для тестирования лучше оставить false)
+  rremoteipmode: false
+  # домен на котором работает приложение
+  domain: "localhost"
+
+mail:
+  # адрес почты с которой будет отправлен email warning (в данной реализации используется gmail)
+  from: "example@gmail.com"
+  # app password для почты
+  pass: "example app password"
+
+jwt:
+  # секретный ключ для access токена
+  accesssec: a-string-secret-at-least-256-bits-long
+  # секретный ключ для refresh токена
+  refreshsec: a-string-secret-at-least-256-bits-long
+
+database:
+  # адрес базы данных
+  host: "localhost"
+  # пользователь базы данных
+  user: "example_user"
+  # пароль от базы данных
+  password: "secret_password"
+  # название базы данных
+  dbname: "example_db"
+  # порт по которому база данных слушает входящие подключения
+  port: 5432
+  # режим шифрования (требует дополнительной конфигурации)
+  sslmode: "disable"
